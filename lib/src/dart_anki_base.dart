@@ -1,84 +1,36 @@
 import 'dart:io';
-import 'package:archive/archive.dart';
+import 'package:dart_anki/src/helpers/new_anki_archive.dart';
+import 'package:dart_anki/src/helpers/parse_anki_archive.dart';
+import 'package:dart_anki/src/models/anki_archive.dart';
 import 'package:dart_anki/src/models/card.dart';
-import 'package:dart_anki/src/models/media.dart';
-import 'package:sqlite3/sqlite3.dart';
+import 'package:dart_anki/src/models/resource.dart';
 
-/// Initializes a parser given the .apkg file
-class AnkiParser {
-  final Directory _tempDir = Directory.systemTemp.createTempSync();
-  Database? _db;
-  final List<Card> _cards = [];
+/// Initializes a instance
+class AnkiInstance {
+  /// Private variable for interaction with the [AnkiArchive] in memory
+  late AnkiArchive _archive;
 
-  Media? media;
+  /// Contains the path to the AnkiArchive for saving and deletion of it entirely
+  late String path;
 
-  List<FileSystemEntity> get files => _tempDir.listSync();
-  List<Card> get cards => _cards;
-  bool get isAwesome => true;
+  List<FileSystemEntity> get files => _archive.tempDir.listSync();
+  List<Card> get cards => _archive.cards;
+  List<Resource> get resources => _archive.resources;
 
-  AnkiParser(String ankiArchivePath) {
-    final apkgFile = File(ankiArchivePath);
-    final bytes = apkgFile.readAsBytesSync();
-    final archive = ZipDecoder().decodeBytes(bytes);
-
-    for (final file in archive) {
-      final filename = file.name;
-
-      if (file.isFile || filename == 'media') {
-        final data = file.content as List<int>;
-        File(_tempDir.path + '/' + filename)
-          ..createSync(recursive: true)
-          ..writeAsBytesSync(data);
-      } else {
-        Directory(_tempDir.path + '/' + filename).create(recursive: true);
-      }
-    }
-
-    final mediaFile = File(_tempDir.path + '/media');
-
-    if (mediaFile.existsSync()) {
-      media = Media(mediaFile);
+  AnkiInstance(String ankiArchivePath, {create = false}) {
+    path = ankiArchivePath;
+    // If file is given init with that
+    if (create) {
+      _archive = new_anki_archive();
     } else {
-      throw Exception('Media file does not exist');
-    }
-
-    _db = sqlite3.open(_tempDir.path + '/collection.anki2');
-
-    final resultSet = _db?.select('SELECT * FROM cards');
-
-    if (resultSet != null) {
-      for (final row in resultSet) {
-        cards.add(Card(
-            row['id'],
-            row['nid'],
-            row['did'],
-            row['ord'],
-            row['mod'],
-            row['usn'],
-            row['type'],
-            row['queue'],
-            row['due'],
-            row['ivl'],
-            row['factor'],
-            row['reps'],
-            row['lapses'],
-            row['left'],
-            row['odue'],
-            row['odid'],
-            row['flags'],
-            row['data']));
-      }
+      _archive = parse_anki_archive(ankiArchivePath);
     }
   }
 
   /// Dispose function to ensure cleanup and dispose of database and temp directory
   void dispose() {
-    if (_db != null) {
-      _db?.dispose();
-    }
+    _archive.db.dispose();
 
-    if (_tempDir is Directory) {
-      _tempDir.deleteSync(recursive: true);
-    }
+    _archive.tempDir.deleteSync(recursive: true);
   }
 }

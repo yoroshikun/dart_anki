@@ -1,7 +1,7 @@
 import 'package:dart_anki/dart_anki.dart';
 
 void main() {
-  var parser = AnkiParser('collection.apkg');
+  var instance = AnkiInstance('collection.apkg');
 
-  print('collectionName: ${parser.isAwesome}');
+  print('firstCardInDeck: ${instance.cards[0].id}');
 }
